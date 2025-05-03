@@ -32,9 +32,14 @@ pub trait IDeFiGuard<TContractState> {
         claim_amount: u256
     ) -> bool;
 
+    fn validate_protocol_name(
+        ref self: TContractState,
+        protocol_name: felt252
+    ) -> bool;
+
     // View Functions
     fn get_protocols(ref self: TContractState) -> Array<felt252>;
     fn get_protocol_details(ref self: TContractState, protocol_name: felt252) -> Protocol;
     fn get_user_cover(ref self: TContractState, user: ContractAddress) -> Array<CoverPosition>;
     fn get_total_liquidity(ref self: TContractState) -> u256;
-} 
+}
