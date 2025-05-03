@@ -1,10 +1,10 @@
-use debug::PrintTrait;
 use array::ArrayTrait;
+use debug::PrintTrait;
+use defiguard::DeFiGuard::DeFiGuard::{CoverPosition, Protocol, ProtocolError};
 use option::OptionTrait;
-use traits::TryInto;
 use starknet::ContractAddress;
 use starknet::testing::{set_caller_address, start_prank, stop_prank};
-use defiguard::DeFiGuard::DeFiGuard::{Protocol, CoverPosition, ProtocolError};
+use traits::TryInto;
 
 fn deploy_contract() -> ContractAddress {
     let owner = starknet::contract_address_const::<0x123>();
@@ -71,7 +71,7 @@ fn test_validate_protocol_name_unauthorized() {
     let mut success = false;
     match contract.validate_protocol_name(valid_name) {
         Ok(_) => {},
-        Err(_) => { success = true; }
+        Err(_) => { success = true; },
     }
     assert(success, 'Should fail for unauthorized access');
 }
@@ -90,7 +90,7 @@ fn test_validate_protocol_name_duplicate() {
         total_cover: 0,
         total_premium: 0,
         is_active: true,
-        created_at: 0
+        created_at: 0,
     };
     contract.protocols.write(protocol_name, protocol);
 
