@@ -1,12 +1,9 @@
 #[starknet::contract]
 pub mod DeFiGuard {
-    use starknet::storage::StorageMapWriteAccess;
-use starknet::storage::StoragePointerReadAccess;
-    use starknet::storage::StorageMapReadAccess;
-    use starknet::storage::StoragePointerWriteAccess;
-    use starknet::storage::Map;
-    use starknet::ContractAddress;
-    use starknet::get_caller_address;
+    use starknet::storage::{Map, StorageMapWriteAccess, StoragePointerReadAccess, StorageMapReadAccess,StoragePointerWriteAccess};
+    use starknet::{ContractAddress,get_caller_address};
+    use core::array::ArrayTrait;
+    use core::option::OptionTrait;
 
     // Constants for protocol name validation
     const MIN_PROTOCOL_NAME_LENGTH: u32 = 3;
@@ -72,53 +69,90 @@ use starknet::storage::StoragePointerReadAccess;
     #[event]
     #[derive(Drop, starknet::Event)]
     enum Event {
-        ProtocolAdded: ProtocolAdded,
-        CoverPurchased: CoverPurchased,
-        CoverClaimed: CoverClaimed,
-        LiquidityAdded: LiquidityAdded,
-        ProtocolValidationFailed: ProtocolValidationFailed,
-        RiskScoreUpdated: RiskScoreUpdated
-    }
-
-    #[derive(Drop, starknet::Event)]
-    struct ProtocolAdded {
-        protocol_name: felt252,
-        risk_score: u8
-    }
-
-    #[derive(Drop, starknet::Event)]
-    struct CoverPurchased {
-        user: ContractAddress,
-        protocol_name: felt252,
-        cover_amount: u256,
-        premium_paid: u256
-    }
-
-    #[derive(Drop, starknet::Event)]
-    struct CoverClaimed {
-        user: ContractAddress,
-        protocol_name: felt252,
-        claim_amount: u256
-    }
-
-    #[derive(Drop, starknet::Event)]
-    struct LiquidityAdded {
-        provider: ContractAddress,
-        amount: u256
+        // Protocol Events
+        ProtocolCreated: ProtocolCreated,
+        ProtocolUpdated: ProtocolUpdated,
+        ProtocolDeactivated: ProtocolDeactivated,
+        ProtocolReactivated: ProtocolReactivated,
+        ProtocolRemoved: ProtocolRemoved,
+        ProtocolRiskUpdated: ProtocolRiskUpdated,
+        ProtocolCoverUpdated: ProtocolCoverUpdated,
+        ProtocolPremiumUpdated: ProtocolPremiumUpdated,
+        ProtocolValidationFailed: ProtocolValidationFailed, // Added event
     }
 
     #[derive(Drop, starknet::Event)]
     struct ProtocolValidationFailed {
         protocol_name: felt252,
-        error: felt252
+        error: felt252,
     }
 
     #[derive(Drop, starknet::Event)]
-    struct RiskScoreUpdated {
+    struct ProtocolCreated {
+        protocol_name: felt252,
+        risk_score: u8,
+        created_by: ContractAddress,
+        timestamp: u64
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct ProtocolUpdated {
         protocol_name: felt252,
         old_risk_score: u8,
         new_risk_score: u8,
-        updated_by: ContractAddress
+        updated_by: ContractAddress,
+        timestamp: u64
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct ProtocolDeactivated {
+        protocol_name: felt252,
+        deactivated_by: ContractAddress,
+        timestamp: u64,
+        reason: felt252
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct ProtocolReactivated {
+        protocol_name: felt252,
+        reactivated_by: ContractAddress,
+        timestamp: u64
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct ProtocolRemoved {
+        protocol_name: felt252,
+        removed_by: ContractAddress,
+        timestamp: u64,
+        reason: felt252
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct ProtocolRiskUpdated {
+        protocol_name: felt252,
+        old_risk_score: u8,
+        new_risk_score: u8,
+        updated_by: ContractAddress,
+        timestamp: u64,
+        reason: felt252
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct ProtocolCoverUpdated {
+        protocol_name: felt252,
+        old_total_cover: u256,
+        new_total_cover: u256,
+        updated_by: ContractAddress,
+        timestamp: u64
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct ProtocolPremiumUpdated {
+        protocol_name: felt252,
+        old_total_premium: u256,
+        new_total_premium: u256,
+        updated_by: ContractAddress,
+        timestamp: u64
     }
 
     #[constructor]
@@ -137,6 +171,7 @@ use starknet::storage::StoragePointerReadAccess;
         assert(caller == owner, 'Unauthorized');
 
         // Validate name length
+      
         let name_length = protocol_name.len();
         if name_length < MIN_PROTOCOL_NAME_LENGTH {
             self.emit(ProtocolValidationFailed { 
@@ -219,14 +254,128 @@ use starknet::storage::StoragePointerReadAccess;
         self.protocols.write(protocol_name, updated_protocol);
 
         // Emit event
-        self.emit(RiskScoreUpdated {
+        self.emit(ProtocolRiskUpdated {
             protocol_name,
             old_risk_score,
             new_risk_score,
-            updated_by: get_caller_address()
+            updated_by: get_caller_address(),
+            timestamp: starknet::get_block_timestamp(),
+            reason: 'Risk score updated'
         });
 
         true
+    }
+
+    fn emit_protocol_created(
+        ref self: ContractState,
+        protocol_name: felt252,
+        risk_score: u8
+    ) {
+        self.emit(ProtocolCreated {
+            protocol_name,
+            risk_score,
+            created_by: get_caller_address(),
+            timestamp: starknet::get_block_timestamp()
+        });
+    }
+
+    fn emit_protocol_updated(
+        ref self: ContractState,
+        protocol_name: felt252,
+        old_risk_score: u8,
+        new_risk_score: u8
+    ) {
+        self.emit(ProtocolUpdated {
+            protocol_name,
+            old_risk_score,
+            new_risk_score,
+            updated_by: get_caller_address(),
+            timestamp: starknet::get_block_timestamp()
+        });
+    }
+
+    fn emit_protocol_deactivated(
+        ref self: ContractState,
+        protocol_name: felt252,
+        reason: felt252
+    ) {
+        self.emit(ProtocolDeactivated {
+            protocol_name,
+            deactivated_by: get_caller_address(),
+            timestamp: starknet::get_block_timestamp(),
+            reason
+        });
+    }
+
+    fn emit_protocol_reactivated(
+        ref self: ContractState,
+        protocol_name: felt252
+    ) {
+        self.emit(ProtocolReactivated {
+            protocol_name,
+            reactivated_by: get_caller_address(),
+            timestamp: starknet::get_block_timestamp()
+        });
+    }
+
+    fn emit_protocol_removed(
+        ref self: ContractState,
+        protocol_name: felt252,
+        reason: felt252
+    ) {
+        self.emit(ProtocolRemoved {
+            protocol_name,
+            removed_by: get_caller_address(),
+            timestamp: starknet::get_block_timestamp(),
+            reason
+        });
+    }
+
+    fn emit_protocol_risk_updated(
+        ref self: ContractState,
+        protocol_name: felt252,
+        old_risk_score: u8,
+        new_risk_score: u8,
+        reason: felt252
+    ) {
+        self.emit(ProtocolRiskUpdated {
+            protocol_name,
+            old_risk_score,
+            new_risk_score,
+            updated_by: get_caller_address(),
+            timestamp: starknet::get_block_timestamp(),
+            reason
+        });
+    }
+
+    fn emit_protocol_cover_updated(
+        ref self: ContractState,
+        protocol_name: felt252,
+        old_total_cover: u256,
+        new_total_cover: u256
+    ) {
+        self.emit(ProtocolCoverUpdated {
+            protocol_name,
+            old_total_cover,
+            new_total_cover,
+            updated_by: get_caller_address(),
+            timestamp: starknet::get_block_timestamp()
+        });
+    }
+
+    fn emit_protocol_premium_updated(
+        ref self: ContractState,
+        protocol_name: felt252,
+        old_total_premium: u256,
+        new_total_premium: u256
+    ) {
+        self.emit(ProtocolPremiumUpdated {
+            protocol_name,
+            old_total_premium,
+            new_total_premium,
+            updated_by: get_caller_address(),
+            timestamp: starknet::get_block_timestamp()
+        });
     }
 }
 
